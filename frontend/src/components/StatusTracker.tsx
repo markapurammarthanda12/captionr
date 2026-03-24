@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import PipelineVisualizer from "./PipelineVisualizer";
 
 interface StatusTrackerProps {
   jobId: string | null;
@@ -100,6 +101,9 @@ export default function StatusTracker({ jobId, onComplete, onError }: StatusTrac
             );
           })}
         </div>
+
+        {/* Pipeline Visualizer Sub-component */}
+        <PipelineVisualizer jobId={jobId} status={status} />
       </div>
     </div>
   );

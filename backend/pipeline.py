@@ -1,6 +1,12 @@
 import subprocess
 import os
 import json
+import librosa
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import numpy as np
+import tiktoken
 from groq import Groq
 from models import Segment
 from typing import List
@@ -20,6 +26,23 @@ def extract_audio(video_path: str, output_path: str) -> str:
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"FFmpeg audio extraction failed: {result.stderr}")
+        
+    # Generate Mel-Spectrogram for the deep NLP UI
+    try:
+        job_dir = os.path.dirname(output_path)
+        y, sr = librosa.load(output_path, sr=16000)
+        S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128)
+        S_dB = librosa.power_to_db(S, ref=np.max)
+        plt.figure(figsize=(10, 4))
+        librosa.display.specshow(S_dB, sr=sr, x_axis='time', y_axis='mel')
+        plt.axis('off')
+        plt.tight_layout(pad=0)
+        spec_path = os.path.join(job_dir, "spectrogram.png")
+        plt.savefig(spec_path, bbox_inches='tight', pad_inches=0, facecolor='#0D0D0D')
+        plt.close()
+    except Exception as e:
+        print(f"Spectrogram generation failed: {e}")
+        
     return output_path
 
 
@@ -43,20 +66,32 @@ def transcribe(audio_path: str, api_key: str) -> List[Segment]:
             w = word_info["word"] if isinstance(word_info, dict) else word_info.word
             start = word_info["start"] if isinstance(word_info, dict) else word_info.start
             end = word_info["end"] if isinstance(word_info, dict) else word_info.end
+            prob_raw = word_info.get("probability") if isinstance(word_info, dict) else getattr(word_info, "probability", None)
+            prob = float(prob_raw) if prob_raw is not None else 0.95
             
-            chunk.append({"word": w, "start": start, "end": end})
+            # Flush if there is a pause > 0.4 seconds to prevent frozen captions
+            if chunk and (start - chunk[-1]["end"] > 0.4):
+                seg_text = " ".join([c["word"].strip() for c in chunk]).strip()
+                if seg_text:
+                    avg_prob = sum(c["probability"] for c in chunk) / len(chunk)
+                    segments.append(Segment(start=chunk[0]["start"], end=chunk[-1]["end"], text=seg_text, probability=avg_prob))
+                chunk = []
+
+            chunk.append({"word": w, "start": start, "end": end, "probability": prob})
             
             # Max 3 words per caption segment
             if len(chunk) >= 3:
-                seg_text = "".join([c["word"] for c in chunk]).strip()
+                seg_text = " ".join([c["word"].strip() for c in chunk]).strip()
                 if seg_text:
-                    segments.append(Segment(start=chunk[0]["start"], end=chunk[-1]["end"], text=seg_text))
+                    avg_prob = sum(c["probability"] for c in chunk) / len(chunk)
+                    segments.append(Segment(start=chunk[0]["start"], end=chunk[-1]["end"], text=seg_text, probability=avg_prob))
                 chunk = []
                 
         if chunk:
-            seg_text = "".join([c["word"] for c in chunk]).strip()
+            seg_text = " ".join([c["word"].strip() for c in chunk]).strip()
             if seg_text:
-                segments.append(Segment(start=chunk[0]["start"], end=chunk[-1]["end"], text=seg_text))
+                avg_prob = sum(c["probability"] for c in chunk) / len(chunk)
+                segments.append(Segment(start=chunk[0]["start"], end=chunk[-1]["end"], text=seg_text, probability=avg_prob))
     
     elif hasattr(transcription, "segments") and transcription.segments:
         # Fallback to normal segment level
@@ -83,12 +118,12 @@ def transliterate(segments: List[Segment], api_key: str) -> List[Segment]:
 
     texts = [seg.text for seg in segments]
     prompt = (
-        "You are a transliteration engine. Convert the following texts from their native script "
-        "into phonetic English (romanized). Return ONLY a valid JSON array of strings, "
-        "one per input line. Do not add explanations.\n\n"
-        "Input texts (JSON array):\n"
-        f"{json.dumps(texts, ensure_ascii=False)}\n\n"
-        "Output (JSON array of romanized strings):"
+        "You are a transliteration engine. Convert all texts from the following JSON array from their native script "
+        "into phonetic English (romanized). If a text is already in English or numerical, keep it exactly the same. "
+        "Output ONLY a valid JSON object containing exactly one key 'results', "
+        "whose value is an array of the romanized strings mapping 1-to-1 with the input array.\n\n"
+        "Input array:\n"
+        f"{json.dumps(texts, ensure_ascii=False)}\n"
     )
 
     chat = client.chat.completions.create(
@@ -96,27 +131,39 @@ def transliterate(segments: List[Segment], api_key: str) -> List[Segment]:
         messages=[{"role": "user", "content": prompt}],
         temperature=0.1,
         max_tokens=2048,
+        response_format={"type": "json_object"},
     )
 
     response_text = chat.choices[0].message.content.strip()
 
-    # Parse the JSON array from the response
+    # Parse the JSON object from the response
     try:
-        # Try to extract JSON from the response
-        start_idx = response_text.find("[")
-        end_idx = response_text.rfind("]") + 1
-        if start_idx != -1 and end_idx > start_idx:
-            transliterated = json.loads(response_text[start_idx:end_idx])
-        else:
-            transliterated = json.loads(response_text)
+        data = json.loads(response_text)
+        transliterated = data.get("results", texts)
+        if not isinstance(transliterated, list):
+            transliterated = texts
     except json.JSONDecodeError:
-        # Fallback: just use original texts
+        # Fallback: just use original texts if completely catastrophic
         transliterated = texts
 
+    try:
+        enc = tiktoken.get_encoding("cl100k_base")
+    except Exception as e:
+        print(f"Tiktoken init error: {e}")
+        enc = None
+        
     for i, seg in enumerate(segments):
-        if i < len(transliterated):
-            seg.transliterated = transliterated[i]
+        transl = transliterated[i] if i < len(transliterated) else seg.text
+        seg.transliterated = transl
+        
+        # Tokenize the Llama 3 output to demonstrate BPE Tokens mathematically
+        if enc:
+            try:
+                token_ids = enc.encode(transl)
+                seg.tokens = [{"id": tid, "text": enc.decode([tid])} for tid in token_ids]
+            except Exception:
+                seg.tokens = []
         else:
-            seg.transliterated = seg.text
+            seg.tokens = []
 
     return segments

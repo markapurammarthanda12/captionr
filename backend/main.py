@@ -148,10 +148,22 @@ async def download_audio(job_id: str):
     """Download the extracted audio."""
     if job_id not in jobs:
         raise HTTPException(status_code=404, detail="Job not found.")
-    audio_path = os.path.join(JOBS_DIR, job_id, "audio.wav")
+    job_dir = os.path.join(JOBS_DIR, job_id)
+    audio_path = os.path.join(job_dir, "audio.wav")
     if not os.path.exists(audio_path):
-        raise HTTPException(status_code=404, detail="Audio file not found.")
-    return FileResponse(audio_path, media_type="audio/wav", filename=f"extracted_audio_{job_id[:8]}.wav")
+        raise HTTPException(status_code=404, detail="Audio not found")
+    return FileResponse(audio_path, media_type="audio/wav", filename="audio.wav")
+
+@app.get("/api/download/{job_id}/spectrogram")
+async def download_spectrogram(job_id: str):
+    """Download the generated spectrogram."""
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    job_dir = os.path.join(JOBS_DIR, job_id)
+    spec_path = os.path.join(job_dir, "spectrogram.png")
+    if not os.path.exists(spec_path):
+        raise HTTPException(status_code=404, detail="Spectrogram not found")
+    return FileResponse(spec_path, media_type="image/png", filename="spectrogram.png")
 
 
 @app.get("/api/download/{job_id}/transcription")

@@ -99,7 +99,7 @@ export default function Home() {
           )}
 
           {/* Processing status tracker */}
-          {appState === "processing" && jobId && (
+          {(appState === "processing" || appState === "completed") && jobId && (
             <StatusTracker
               jobId={jobId}
               onComplete={handleComplete}

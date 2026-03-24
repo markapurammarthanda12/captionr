@@ -29,6 +29,8 @@ class Segment(BaseModel):
     end: float
     text: str
     transliterated: Optional[str] = None
+    probability: Optional[float] = None
+    tokens: Optional[list] = None
 
 
 class JobInfo(BaseModel):

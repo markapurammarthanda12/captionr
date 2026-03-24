@@ -1,0 +1,16 @@
+node_modules
+.next
+.env
+backend/venv
+backend/.jobs
+backend/__pycache__
+*.pyc
+*.mp4
+*.wav
+*.json
+!frontend/package.json
+!frontend/tsconfig.json
+!backend/render.py
+!backend/models.py
+!backend/main.py
+!backend/pipeline.py
