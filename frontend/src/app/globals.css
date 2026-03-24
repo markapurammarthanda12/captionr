@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #000000;
+  --color-foreground: #ffffff;
+  --color-muted: #888888;
+  --color-border: #222222;
+  --color-border-hover: #444444;
+  --color-surface: #0a0a0a;
+  --color-surface-hover: #111111;
+  --color-accent: #ffffff;
+  --color-accent-dim: rgba(255, 255, 255, 0.06);
+  --color-success: #22c55e;
+  --color-error: #ef4444;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 3px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: #222; }
+  50% { border-color: #444; }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+.animate-pulse-border {
+  animation: pulse-border 2s ease-in-out infinite;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 2s linear infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}

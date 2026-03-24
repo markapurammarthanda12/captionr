@@ -1,0 +1,6 @@
+{
+  "python.defaultInterpreterPath": "/Users/marthanda/Documents/Projects/NLP PROJECT/captionr-app/backend/venv/bin/python",
+  "python.analysis.extraPaths": [
+    "/Users/marthanda/Documents/Projects/NLP PROJECT/captionr-app/backend"
+  ]
+}
